@@ -1,0 +1,23 @@
+
+
+```{r}
+#We are going to load the packages required for the project
+
+
+library(tidyverse) #Data manipulation
+
+
+
+#For extreme value estimation of parameters. It uses 
+#MLE, this estimation can have some problems with
+#estimation in small samples.
+library(evd) 
+
+##Alternatives
+#evir, extRemes, fExtremes, and POT 
+
+#fExtremes allow employ Probability 
+#Weighted Moments method. It can
+#be  useful for small smaples
+
+````
