@@ -8,13 +8,10 @@ output: html_document
 
 ```{r setup, include=FALSE}
 #We are going to load the packages required for the project
-
-
+options(scipen=999)
 library(tidyverse) #Data manipulation
+library(lubridate)
 library(readr)
-base_de_datos <- read_csv("C:/Users/sabat/Desktop/Trabajos/2022/UCR/II Semestre/DISTRIBUCIONES DE PÉRDIDAS/Proyecto_Dist_Per/base_de_datos.csv")
-
-
 
 #For extreme value estimation of parameters. It uses 
 #MLE, this estimation can have some problems with
@@ -29,27 +26,198 @@ library(evd)
 #be  useful for small smaples
 
 
+base_de_datos <- read_csv("C:/Users/sabat/Desktop/Trabajos/2022/UCR/II Semestre/DISTRIBUCIONES DE PÉRDIDAS/Proyecto_Dist_Per/base_de_datos.csv")
+base_de_datos<-base_de_datos %>%select(-c(`REGION / TOWN`,FinYeae ))
+base_de_datos<-base_de_datos[-c(12:length(base_de_datos))]
+
+base_de_datos<-base_de_datos[!(is.na(base_de_datos$Type)|base_de_datos$Type=="Other"|base_de_datos$Type=="East Coast Low"|base_de_datos$Type=="Wind"),]
+
+base_de_datos$`CAT EVENT START`<-as.Date(base_de_datos$`CAT EVENT START`, "%m/%d/%y")
+base_de_datos$`CAT EVENT FINISH`<-as.Date(base_de_datos$`CAT EVENT FINISH`, "%m/%d/%y")
+
+base_de_datos$Type<-as.factor(base_de_datos$Type)
+
+base_de_datos$YEAR<-as.numeric(base_de_datos$YEAR)
+base_de_datos$`ORIGINAL LOSS VALUE`<-as.numeric(base_de_datos$`ORIGINAL LOSS VALUE`)
+base_de_datos$`NORMALISED LOSS VALUE (2017)`<-as.numeric(base_de_datos$`NORMALISED LOSS VALUE (2017)`)
+
+
+
+base_de_datos$Type<-recode_factor(base_de_datos$Type, "Bushfire"="Incendio forestal",
+                                  "Cyclone" = "Ciclón", "Earthquake"="Terremoto",
+                                  "Flooding"="Inundación",  "Hailstorm" ="Granizada", 
+                                  "Storm"="Tormenta" )
 ```
 
 
+```{r, fig.align="center",fig.width=11, fig.height=7, echo=FALSE, message=FALSE, warning=FALSE,fig.cap='titulo'}
+CantidadPorAno <-
+  as.data.frame(base_de_datos %>% group_by(Type) %>% count(YEAR))
 
-```{r, fig.align="center",fig.width=10, fig.height=5, echo=FALSE, message=FALSE, warning=FALSE,fig.cap='titulo'}
+imagen1<-CantidadPorAno %>% ggplot(aes(
+  x = YEAR,
+  y = n,
+  group = Type,
+  color = Type
+)) +
+  geom_line(size = 1.25) +
+  scale_color_discrete(name = "Tipo") +
+  facet_wrap( ~ Type,
+              ncol = 2,
+              dir = "v",
+              scales = "free_y" ) +
+  labs(y = "Cantidad", x = "Año") +
+  scale_x_continuous(breaks = seq(min(CantidadPorAno$YEAR), max(CantidadPorAno$YEAR), 5),
+                     minor_breaks = seq(0, 16, 1), ) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(
+    text =  element_text(size = 17),
+    legend.position = "none",
+    plot.caption = element_text(hjust = 0),
+    axis.text.x = element_text(angle = 25),
+    panel.spacing = unit(0.65, "cm"),
+    strip.text = element_text(size = 17)
+  )
+imagen1
+# ggsave(file="CantidadporAño.svg", plot=imagen1, width=11, height=7)
 
-#hacer uno de barras
+```
 
-base_de_datos%>%ggplot(aes(y = Type, x = YEAR, group=Type, color=Type)) +
+```{r, fig.align="center",fig.width=11, fig.height=7, echo=FALSE, message=FALSE, warning=FALSE,fig.cap='titulo'}
+names(CantidadPorAno)<-c("Tipo","año","cantidad")
+cantidad_de_años_con_la_misma_cantidad_de_tornados<-as.data.frame(CantidadPorAno%>% group_by(Tipo) %>% count(cantidad))
+
+#Frecuencia del numero de eventos por año
+
+imagen1<-cantidad_de_años_con_la_misma_cantidad_de_tornados%>%ggplot(aes(x=cantidad, y = n,group=Tipo, color=Tipo, fill=Tipo))+
+  geom_bar(
+    stat = "identity",
+    width = 0.75,
+    position = position_dodge2(width = 20, preserve = "single")
+  ) +
+  scale_x_continuous(breaks = seq(0, 16, 1),
+                     minor_breaks = seq(0, 16, 1)) +
+  scale_y_continuous(breaks = seq(
+    0,
+    length(cantidad_de_años_con_la_misma_cantidad_de_tornados$n),
+    2
+  ),
+  minor_breaks = seq(
+    0,
+    length(cantidad_de_años_con_la_misma_cantidad_de_tornados$n),
+    1
+  )) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set2") +
+  labs(x = "Número de eventos", y = "Frecuencia a través de los años") +
+  guides(color = guide_legend(title = "Tipo de evento"),
+         fill = guide_legend("Tipo de evento")) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.caption = element_text(hjust = 0),
+    text =  element_text(size = 16)
+  )
+
+imagen1
+# ggsave(file="FrecuencPorAño.svg", plot=imagen1, width=11, height=7)
+```
+ 
+
+
+```{r, fig.align="center",fig.width=11, fig.height=7, echo=FALSE, message=FALSE, warning=FALSE,fig.cap='titulo'}
+imagen1<-base_de_datos%>%ggplot(aes(y = Type, x = `NORMALISED LOSS VALUE (2017)`/1000000, group=Type, color=Type)) +
   geom_boxplot(aes(color = Type), alpha = 1) +
   stat_boxplot(geom='errorbar', linetype=1, width=0.5)+
   geom_jitter(aes(color = Type), size = 1, alpha = 0.09)+
   scale_color_discrete(name = "Type")+
-  stat_summary(fun.y=mean, geom="point", shape=18,
-size=3)+
-  ylab('') +
-  xlab('Año') +
-  scale_x_continuous(breaks=seq(600, 1200, 50))+labs( caption = "Fuente: fd")+
-  theme_minimal()+theme(axis.text.y=element_blank(),
-      legend.position = "left",plot.caption=element_text(hjust=0.5))
+  stat_summary(fun.y=mean, geom="point", shape=18,size=3)+
+  #facet_wrap(~ Type,ncol = 2,dir = "v",scales = "free" )+
+  scale_x_continuous(breaks=seq(0, max(base_de_datos$`NORMALISED LOSS VALUE (2017)`, na.rm = T)/1000000, 1000/2))+
+  scale_fill_brewer(palette="Set2")+
+  scale_color_brewer(palette="Set2")+
+  labs( y='',x='Montos de perdidas (en millones de dólares australianos)')+
+  guides(color=guide_legend(title="Tipo de evento"),fill=guide_legend("Tipo de evento")) +
+  theme_minimal()+
+  theme(axis.text.y=element_blank(),
+        legend.position="left",
+        plot.caption = element_text(hjust = 0),
+        text =  element_text(size=17))
+imagen1
+#ggsave(file="PerdidasConjunta.svg", plot=imagen1, width=11, height=7)
+```
 
+
+
+```{r, fig.align="center",fig.width=11, fig.height=7, echo=FALSE, message=FALSE, warning=FALSE,fig.cap='titulo'}
+imagen1<-base_de_datos %>% ggplot(aes(
+  y = Type,
+  x = `NORMALISED LOSS VALUE (2017)` / 1000000,
+  group = Type,
+  color = Type
+)) +
+  geom_boxplot(aes(color = Type), alpha = 1) +
+  stat_boxplot(geom = 'errorbar',
+               linetype = 1,
+               width = 0.5) +
+  geom_jitter(aes(color = Type), size = 1, alpha = 0.09) +
+  scale_color_discrete(name = "Type") +
+  stat_summary(
+    fun.y = mean,
+    geom = "point",
+    shape = 18,
+    size = 3
+  ) +
+  facet_wrap( ~ Type,
+              #ncol = 2,
+              #dir = "v",
+              scales = "free") +
+  scale_fill_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set2") +
+  scale_x_continuous(n.breaks = 6) +
+  labs(y = '', x = 'Montos de perdidas (en millones de dólares australianos)') +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    legend.position = "none",
+    plot.caption = element_text(hjust = 0),
+    text =  element_text(size = 17),
+    strip.text = element_text(size = 17),
+    panel.spacing = unit(0.75, "cm")
+  )
+imagen1
+#ggsave(file="PerdidasIndividuales.svg", plot=imagen1, width=11, height=7)
+```
+
+
+
+```{r, fig.align="center",fig.width=11, fig.height=7, echo=FALSE, message=FALSE, warning=FALSE,fig.cap='titulo'}
+imagen1<-base_de_datos %>% ggplot(aes(
+  x = `NORMALISED LOSS VALUE (2017)` / 1000000,
+  group = Type,
+  color = Type,
+  fill = Type)) +
+  #geom_density(alpha = 0.7) +
+  geom_histogram()+
+  scale_x_continuous(n.breaks = 6) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set2") +
+  facet_wrap( ~ Type
+              #, scales = "free"
+              ) +
+  labs(x = "Montos de perdidas (en millones de dólares australianos)", y = "Frecuencia") +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.caption = element_text(hjust = 0.5),
+    text =  element_text(size = 17),
+    strip.text = element_text(size = 17),
+    panel.spacing = unit(0.75, "cm")
+  )
+imagen1
+#ggsave(file="PerdidasHistrograma.svg", plot=imagen1, width=11, height=7)
 ```
 
 
@@ -82,48 +250,74 @@ size=3)+
 
 
 
+## Se puede eliminar 
 
+```{r, fig.align="center",fig.width=10, fig.height=5, echo=FALSE, message=FALSE, warning=FALSE,fig.cap='titulo'}
+#hacer log
+base_de_datos%>%ggplot(aes(y = Type, x = `NORMALISED LOSS VALUE (2017)`, group=Type, color=Type)) +
+  geom_boxplot(aes(color = Type), alpha = 1 ) +
+  stat_boxplot(geom='errorbar', linetype=1, width=0.5)+
+  geom_jitter(aes(color = Type), size = 1, alpha = 0.09)+
+  scale_color_discrete(name = "Type")+
+  stat_summary(fun.y=mean, geom="point", shape=18,size=3)+
+  ylab('') +
+  xlab('Valor de perdida en millones') +
+  scale_x_continuous(trans = "log")+
+  labs( caption = "Fuente: fd")+
+  theme_minimal()+
+  theme(axis.text.y=element_blank(),
+        legend.position="bottom",
+        plot.caption = element_text(hjust = 0),
+        text =  element_text(size=17))
+```
 
+```{r}
+summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[1],])
+levels(base_de_datos$Type)[1]
 
+summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[2],])
+levels(base_de_datos$Type)[2]
 
+summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[3],])
+levels(base_de_datos$Type)[3]
 
+summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[4],])
+levels(base_de_datos$Type)[4]
 
+summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[5],])
+levels(base_de_datos$Type)[5]
 
+summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[6],])
+levels(base_de_datos$Type)[6]
 
+summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[7],])
+levels(base_de_datos$Type)[7]
 
+```
 
+```{r}
+#No se usa
+tp<-(cantidad_de_años_con_la_misma_cantidad_de_tornados$Tipo=="Ciclón"|cantidad_de_años_con_la_misma_cantidad_de_tornados$Tipo=="Tormenta")
 
+cantidad_de_años_con_la_misma_cantidad_de_tornados[!tp,]%>%ggplot(aes(x=cantidad, y = n,group=Tipo, color=Tipo, fill=Tipo))+
+  geom_bar(stat = "identity",  width = 0.4,
+           position=position_dodge(width = 0.7))+
+  scale_color_discrete(name = "Tipo")+
+  labs(y = "Cantidad",x = "Tiempo", caption = "Fuente: Elaboración propia, con datos ")+
+  theme_minimal()+
+  theme(legend.position="bottom",plot.caption = element_text(hjust = 0))
+```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```{r}
+#No se usa
+cantidad_de_años_con_la_misma_cantidad_de_tornados[tp,]%>%ggplot(aes(x=cantidad, y = n,group=Tipo, color=Tipo, fill=Tipo))+
+  geom_bar(stat = "identity",  width = 0.4,
+           position=position_dodge(width = 0.5))+
+  scale_color_discrete(name = "Tipo")+
+  labs(y = "Cantidad",x = "Tiempo", caption = "Fuente: Elaboración propia, con datos ")+
+  theme_minimal()+
+  theme(legend.position="bottom",plot.caption = element_text(hjust = 0))
+```
 
 
 
