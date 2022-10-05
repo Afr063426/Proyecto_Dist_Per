@@ -81,7 +81,7 @@ imagen1<-CantidadPorAno %>% ggplot(aes(
     strip.text = element_text(size = 17)
   )
 imagen1
-# ggsave(file="CantidadporAño.svg", plot=imagen1, width=11, height=7)
+ggsave(file="CantidadporAno.pdf", plot=imagen1, width=11, height=7)
 
 ```
 
@@ -122,7 +122,7 @@ imagen1<-cantidad_de_años_con_la_misma_cantidad_de_tornados%>%ggplot(aes(x=cant
   )
 
 imagen1
-# ggsave(file="FrecuencPorAño.svg", plot=imagen1, width=11, height=7)
+ggsave(file="FrecuencPorAno.pdf", plot=imagen1, width=11, height=7)
 ```
  
 
@@ -146,7 +146,7 @@ imagen1<-base_de_datos%>%ggplot(aes(y = Type, x = `NORMALISED LOSS VALUE (2017)`
         plot.caption = element_text(hjust = 0),
         text =  element_text(size=17))
 imagen1
-#ggsave(file="PerdidasConjunta.svg", plot=imagen1, width=11, height=7)
+ggsave(file="PerdidasConjunta.pdf", plot=imagen1, width=11, height=7)
 ```
 
 
@@ -188,7 +188,7 @@ imagen1<-base_de_datos %>% ggplot(aes(
     panel.spacing = unit(0.75, "cm")
   )
 imagen1
-#ggsave(file="PerdidasIndividuales.svg", plot=imagen1, width=11, height=7)
+ggsave(file="PerdidasIndividuales.pdf", plot=imagen1, width=11, height=7)
 ```
 
 
@@ -217,7 +217,7 @@ imagen1<-base_de_datos %>% ggplot(aes(
     panel.spacing = unit(0.75, "cm")
   )
 imagen1
-#ggsave(file="PerdidasHistrograma.svg", plot=imagen1, width=11, height=7)
+ggsave(file="PerdidasHistrograma.pdf", plot=imagen1, width=11, height=7)
 ```
 
 
