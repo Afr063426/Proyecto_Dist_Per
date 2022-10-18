@@ -47,6 +47,11 @@ base_de_datos$Type<-recode_factor(base_de_datos$Type, "Bushfire"="Incendio fores
                                   "Cyclone" = "Ciclón", "Earthquake"="Terremoto",
                                   "Flooding"="Inundación",  "Hailstorm" ="Granizada", 
                                   "Storm"="Tormenta" )
+
+base_de_datos$`NORMALISED LOSS VALUE (2017)`[is.na(base_de_datos$`NORMALISED LOSS VALUE (2017)`) ]<-0
+
+base_de_datos<-base_de_datos[base_de_datos$`NORMALISED LOSS VALUE (2017)`>1,]
+
 ```
 
 
@@ -141,8 +146,8 @@ imagen1<-base_de_datos%>%ggplot(aes(y = Type, x = `NORMALISED LOSS VALUE (2017)`
   labs( y='',x='Montos de perdidas (en millones de dólares australianos)')+
   guides(color=guide_legend(title="Tipo de evento"),fill=guide_legend("Tipo de evento")) +
   theme_minimal()+
-  theme(axis.text.y=element_blank(),
-        legend.position="left",
+  theme(
+        legend.position="none",
         plot.caption = element_text(hjust = 0),
         text =  element_text(size=17))
 imagen1
@@ -249,75 +254,6 @@ ggsave(file="PerdidasHistrograma.pdf", plot=imagen1, width=11, height=7)
 
 
 
-
-## Se puede eliminar 
-
-```{r, fig.align="center",fig.width=10, fig.height=5, echo=FALSE, message=FALSE, warning=FALSE,fig.cap='titulo'}
-#hacer log
-base_de_datos%>%ggplot(aes(y = Type, x = `NORMALISED LOSS VALUE (2017)`, group=Type, color=Type)) +
-  geom_boxplot(aes(color = Type), alpha = 1 ) +
-  stat_boxplot(geom='errorbar', linetype=1, width=0.5)+
-  geom_jitter(aes(color = Type), size = 1, alpha = 0.09)+
-  scale_color_discrete(name = "Type")+
-  stat_summary(fun.y=mean, geom="point", shape=18,size=3)+
-  ylab('') +
-  xlab('Valor de perdida en millones') +
-  scale_x_continuous(trans = "log")+
-  labs( caption = "Fuente: fd")+
-  theme_minimal()+
-  theme(axis.text.y=element_blank(),
-        legend.position="bottom",
-        plot.caption = element_text(hjust = 0),
-        text =  element_text(size=17))
-```
-
-```{r}
-summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[1],])
-levels(base_de_datos$Type)[1]
-
-summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[2],])
-levels(base_de_datos$Type)[2]
-
-summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[3],])
-levels(base_de_datos$Type)[3]
-
-summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[4],])
-levels(base_de_datos$Type)[4]
-
-summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[5],])
-levels(base_de_datos$Type)[5]
-
-summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[6],])
-levels(base_de_datos$Type)[6]
-
-summary(base_de_datos[base_de_datos$Type==levels(base_de_datos$Type)[7],])
-levels(base_de_datos$Type)[7]
-
-```
-
-```{r}
-#No se usa
-tp<-(cantidad_de_años_con_la_misma_cantidad_de_tornados$Tipo=="Ciclón"|cantidad_de_años_con_la_misma_cantidad_de_tornados$Tipo=="Tormenta")
-
-cantidad_de_años_con_la_misma_cantidad_de_tornados[!tp,]%>%ggplot(aes(x=cantidad, y = n,group=Tipo, color=Tipo, fill=Tipo))+
-  geom_bar(stat = "identity",  width = 0.4,
-           position=position_dodge(width = 0.7))+
-  scale_color_discrete(name = "Tipo")+
-  labs(y = "Cantidad",x = "Tiempo", caption = "Fuente: Elaboración propia, con datos ")+
-  theme_minimal()+
-  theme(legend.position="bottom",plot.caption = element_text(hjust = 0))
-```
-
-```{r}
-#No se usa
-cantidad_de_años_con_la_misma_cantidad_de_tornados[tp,]%>%ggplot(aes(x=cantidad, y = n,group=Tipo, color=Tipo, fill=Tipo))+
-  geom_bar(stat = "identity",  width = 0.4,
-           position=position_dodge(width = 0.5))+
-  scale_color_discrete(name = "Tipo")+
-  labs(y = "Cantidad",x = "Tiempo", caption = "Fuente: Elaboración propia, con datos ")+
-  theme_minimal()+
-  theme(legend.position="bottom",plot.caption = element_text(hjust = 0))
-```
 
 
 
