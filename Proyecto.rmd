@@ -13,10 +13,14 @@ library(tidyverse) #Data manipulation
 library(lubridate)
 library(readr)
 
+
+library(qqplotr) # for qqplot
 #For extreme value estimation of parameters. It uses 
 #MLE, this estimation can have some problems with
 #estimation in small samples.
-library(evd) 
+library(evd)
+library(rBayesianOptimization)
+library(kdensity)
 
 ##Alternatives
 #evir, extRemes, fExtremes, and POT 
@@ -25,8 +29,8 @@ library(evd)
 #Weighted Moments method. It can
 #be  useful for small smaples
 
-
-base_de_datos <- read_csv("C:/Users/sabat/Desktop/Trabajos/2022/UCR/II Semestre/DISTRIBUCIONES DE PÉRDIDAS/Proyecto_Dist_Per/base_de_datos.csv")
+setwd("C:/Users/saac9/OneDrive - Universidad de Costa Rica/Documents/UCR/2022/Distribuciones_de_Perdidas/Proyecto_Dist_Per")
+base_de_datos <- read_csv("base_de_datos.csv")
 base_de_datos<-base_de_datos %>%select(-c(`REGION / TOWN`,FinYeae ))
 base_de_datos<-base_de_datos[-c(12:length(base_de_datos))]
 
@@ -47,6 +51,9 @@ base_de_datos$Type<-recode_factor(base_de_datos$Type, "Bushfire"="Incendio fores
                                   "Cyclone" = "Ciclón", "Earthquake"="Terremoto",
                                   "Flooding"="Inundación",  "Hailstorm" ="Granizada", 
                                   "Storm"="Tormenta" )
+
+
+
 ```
 
 
@@ -318,6 +325,105 @@ cantidad_de_años_con_la_misma_cantidad_de_tornados[tp,]%>%ggplot(aes(x=cantidad
   theme_minimal()+
   theme(legend.position="bottom",plot.caption = element_text(hjust = 0))
 ```
+
+
+
+
+
+
+## Model employing Machine Learning
+```{r}
+#Estimation function by kernel density
+#We create a function that estimate de parameteres
+#employing MLE and POT method
+#X is the data
+#u is the threshold
+#x is the parameter that wants to be
+#estimated
+
+
+GPD_MLE <- function(X,u){
+  model <- evd::fpot(x=X,threshold = u, model = "gpd",std.err=FALSE) #Fit the parameters
+  scale <- model$estimate[1]
+  shape <- model$estimate[2]
+  return(c(shape,scale)) #We return the value
+}
+
+norm_L_1_GPD_KDE <- function(X,eps=0,iter=1000){
+  m <- min(X[X>0],na.rm=TRUE)
+  #print(m)
+  M <- max(X, na.rm=TRUE)
+  M <- max(X[X<M])
+  fn <- function(u){
+    
+    kde <- kdensity(X[X>=u],kernel="gaussian",normalized=FALSE)
+    #print(u)
+    GPD_params <- GPD_MLE(X,u)
+    #print(GPD_params)
+    F_kde_u <-  integrate(function(x) kde(x-eps),lower=eps,upper = Inf)$value
+    integral <- integrate(function(x) abs(kde(x)/(F_kde_u)-evd::dgpd(x,loc=u,scale=GPD_params[2],shape= GPD_params[1],log=FALSE)),lower = u,upper=Inf)$value
+    
+    return(integral)
+    
+  }
+  #return(BayesianOptimization(FUN=fn,bounds = list(u=c(m,M)),n_iter=iter))
+  optim(par=m,fn,lower=m,upper=M, method="Brent")
+  
+}
+
+
+
+
+parameters <- function(X,eps=0,iter=1000){
+  M <- max(X)
+  Y <- X/M
+  p <- norm_L_1_GPD_KDE(Y,eps=eps,iter=iter)
+  GPD_params <- GPD_MLE(X,u=p$par*M)
+  return(list(shape=GPD_params[1],scale=GPD_params[2],u=p$par*M,error=p$value))
+}
+
+
+estimation_nakamura <- data.frame("Evento"=character(),shape = numeric(),scale=numeric(),u=numeric(),error=numeric())
+events <- unique(base_de_datos$Type)
+
+for (i in events){
+  data_model <- base_de_datos%>%filter(Type == i)
+  X <- t(data_model%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X[is.na(X)] <- 0 
+  #print(length(X))
+  #print(X)
+  estimation <- parameters(X)
+  estimation_nakamura <- rbind(estimation_nakamura, data.frame("Evento"=i,shape = estimation$shape,scale=estimation$scale,u=estimation$u,error=estimation$error))
+}
+
+#ejemplo <- estimation_nakamura[1,]
+#M<- t(base_de_datos%>%filter(Type == events[1])%>%select(`NORMALISED LOSS VALUE (2017)`))
+#M[is.na(M)] <- 0
+#for_hist <- M[M>=ejemplo$u]
+#M <- max(M,na.rm=TRUE)
+#ggplot(,)+xlim(0,M+1)+stat_function(fun = evd::dgpd,args=list(shape=ejemplo$shape,loc=ejemplo$u,scale=ejemplo$scale))+geom_his
+
+
+create_qqplot <- function(data,distribution,list_params){
+        plot <- ggplot(,aes(sample=data)) + stat_qq_line(distribution = "gpd", dparams= list_params) + stat_qq_point(distribution = "gpd", dparams = list_params)
+        return(plot)
+}
+
+M<- t(base_de_datos%>%filter(Type == events[4])%>%select(`NORMALISED LOSS VALUE (2017)`))
+M[is.na(M)] <- 0
+for_hist <- M[M>=estimation_nakamura$u[2]]
+create_qqplot(data=for_hist,distribution="gpd",list(shape=estimation_nakamura$shape[2],scale=estimation_nakamura$scale[2],loc=estimation_nakamura$u[2]))
+
+u<-seq(min(M),max(M),by=100000)
+prueba<-numeric()
+for(j in (1:length(u))){
+prueba[j] <- mean(M[M>u[j]]) #Fit the parameters
+}
+plot(x=u,prueba)
+```
+
+
+
 
 
 

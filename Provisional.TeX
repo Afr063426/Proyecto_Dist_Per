@@ -12,3 +12,48 @@ que pueden ser los gr\'aficos, sin embargo, seg\'un el hiperpar\'ametro seleccio
 grado de ajuste del modelo y es un intercambio entre el sesgo y la varianza. Si el par\'ametro 
 es bajo entonces se viola el argumento que permite emplear una Pareto generalizada y si el umbral es 
 demasido alto entonces se tendr\'an pocas observaciones lo que generar\'a una alta varianza.
+
+
+%-------------------------------------------------------------------------------------------
+\par Como se ya se mencion\'o anteriormente existen distintos m\'etodos para la selecci\'on de los
+hiperpar\'ametros entre ellos se encuentran seg\'un \textcolor{red}{Ogutu y Rono (2020)} 
+el gr\'afico de vida media residual, gr\'afico de estabilidad del par\'ametro, y gr\'afico
+de Gertensgarbe y Werner. En el primer m\'etodo se propone la construcci\'on de un gr\'afico
+en el cual se busca encontar un punto a partir del cual se tiene un comportamiento lineal,
+en el segundo por otro consiste en encontrar un punto a partir del cual se encuentra
+un cierto grado de estabilidad y finalmente el \'ultimos se basa en la construcci\'on de dos
+series de las cuales se obtiene una sucesi\'on de puntos y el hiper\'ametro es la intersecci\'on
+de los puntos. Sin embargo, tal y como lo proponen \textcolor{red}{Andreev (2012)} existen otros 
+m\'etodos como el gr\'afico de Hill. 
+
+\par Tambi\'en se han propuesto reglas emp\'iricas. Autores como \textcolor{red}{DuMouchel (1983)} que propone se debe tomar el quantil
+0.9, justificando esta selecci\'on como un compromiso entre la necesidad pr\'actica de estimar
+los par\'ametros y el deseo te\'orico de describir el comportamiento de la distribuci\'on.
+
+\par Todos estos estimadores tienen una ventaja que es el poco consumo computacional que 
+tienen. Sin embargo, \text{red}{Nakamura (2021)} es cr\'itico de estos m\'etodos al destacar
+que estos m\'etodos son subjetivos, afectan directamente la estimaci\'on de los par\'ametros y
+no son autom\'aticos, siempre requieren de un criterio experto.
+Este mismo autor destaca casi inexistencia de m\'etodos que no sean del tipo emp\'irico o gr\'afico.
+Esto se puede deber a que anteriormente no se contaba con la capacidad computacional con la que
+se cuenta actualmente. \textcolor{red}{Nakamura (2021)} propone en su trabajo un m\'etodo mediante
+el cual se busca encontrar la estabilidad de los par\'ametros mediante la estimaci\'on MLE de los
+par\'ametros hasta encontrar aquellos en los que se alcance una estabilidad.
+Lo que sucede con este m\'etodo se tiene un alto costo computacional. Sin embargo, el autor
+propone solucionar esto haciendo uso algoritmos de Machine Learning. En donde en este trabajo
+se entender\'a Machine Learning de acuerdo expuesto por \textcolor{red}{Ławrynowicz y Tresp (2014)},
+\textcolor{red}{Wehle (2017)}, Shalev-Schwartz y Ben-David (2014), como el uso de
+distintos algoritmos o métodos que tienen como objetivo desarrollar programas computacionales, 
+que son capaces de encontrar patrones en conjuntos de datos y de cierta forma aprender de estos.
+
+\par El algoritmo de Machine Learning empleado por \textcolor{red}{Nakamura (2021)} es el de optimizaci\'on
+bayesiana. Que como lo propone \textcolor{Frazier (2018)} es un algoritmo que permite la optimizaci\'on 
+de funciones las cuales pueden tomar un largo periodo de tiempo en ser evaluadas (20 minutos o una hora).
+Este algoritmo se ha vuelto popular en los \'ultimos a\~nos para estimar los hiperpar\'ametros en Machine Learning.
+
+\par Otro m\'etodo que ha sido propuesto para la selecci\'on del hiperpar\'ametro de
+forma autom\'atica ha sido el propuesto por \textcolor{red}{Bader et al. (2018)}. Donde en
+dicho algoritmo se emplean distintos ajustes de bondad de ajuste como son el de Anderson-Darling,
+y Cram\'er-Von Mises, test de Moran y score de Rao, y estudio de poder. El objetivo de este algoritmo
+es automatizar la escogencia del umbral de ajust y eliminar la subjetividad que se tiene mediante
+la selecci\'on empleando gr\'aficos.
