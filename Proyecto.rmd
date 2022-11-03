@@ -12,15 +12,34 @@ options(scipen=999)
 library(tidyverse) #Data manipulation
 library(lubridate)
 library(readr)
-
-
+library(RColorBrewer)#Palette of colors
 library(qqplotr) # for qqplot
+library(ggpubr) #for merge plots
+
 #For extreme value estimation of parameters. It uses 
 #MLE, this estimation can have some problems with
 #estimation in small samples.
 library(evd)
 library(rBayesianOptimization)
 library(kdensity)
+
+
+
+
+
+
+#To extract the colors of Rbrewer
+#f <- function(pal) brewer.pal(brewer.pal.info[pal, "maxcolors"], pal)
+#(cols <- f("Set2"))
+
+
+cols <- c("Inundacion"= "#E78AC3",
+          "Tormenta" = "#FFD92F",
+          "Terremoto"="#8DA0CB",
+          "Ciclon" = "#FC8D62",
+          "Incendio_Forestal"="#66C2A5",
+          "Granizada" = "#A6D854",
+          "Tornado" = "#E5C494")
 
 ##Alternatives
 #evir, extRemes, fExtremes, and POT 
@@ -276,6 +295,24 @@ ggsave(file="PerdidasHistrograma.pdf", plot=imagen1, width=11, height=7)
 #x is the parameter that wants to be
 #estimated
 
+events <- unique(base_de_datos$Type)
+
+
+mean_excess_plot <- function(X){
+  maximum <- max(X)
+  X <- sort(X/maximum)
+  difference <- diff(X,decreasing=TRUE)
+  rango <-min(difference[difference>0])
+  #print(rango)
+  u <- seq(min(X),max(X), by = rango)
+  fn <- function(u){
+    return(mean((X[X>u]-u)))
+  }
+  mean_excess <- unlist(lapply(u, FUN=fn))
+  plot <- geom_line(aes(x=u,y=mean_excess))
+  return(plot)
+}
+
 
 GPD_MLE <- function(X,u){
   model <- evd::fpot(x=X,threshold = u, model = "gpd",std.err=FALSE) #Fit the parameters
@@ -284,78 +321,183 @@ GPD_MLE <- function(X,u){
   return(c(shape,scale)) #We return the value
 }
 
-norm_L_1_GPD_KDE <- function(X,eps=0,iter=1000){
-  m <- min(X[X>0],na.rm=TRUE)
-  #print(m)
-  M <- max(X, na.rm=TRUE)
-  M <- max(X[X<M])
+norm_L_1_GPD_KDE <- function(X,eps=0,iter=1000,lower,upper){
+  lower <- lower/max(X)
+  upper <- upper/max(X)
+  print(lower)
+  print(upper)
+  Y <- X/max(X)
+
   fn <- function(u){
-    
-    kde <- kdensity(X[X>=u],kernel="gaussian",normalized=FALSE)
-    #print(u)
-    GPD_params <- GPD_MLE(X,u)
-    #print(GPD_params)
+    kde <- kdensity(Y[Y>u],kernel="gaussian",normalized=FALSE)
+    GPD_params <- GPD_MLE(Y,u)
     F_kde_u <-  integrate(function(x) kde(x-eps),lower=eps,upper = Inf)$value
     integral <- integrate(function(x) abs(kde(x)/(F_kde_u)-evd::dgpd(x,loc=u,scale=GPD_params[2],shape= GPD_params[1],log=FALSE)),lower = u,upper=Inf)$value
-    
+  
     return(integral)
     
   }
   #return(BayesianOptimization(FUN=fn,bounds = list(u=c(m,M)),n_iter=iter))
-  optim(par=m,fn,lower=m,upper=M, method="Brent")
+  optim(par=lower,fn,lower=lower,upper=upper, method="Brent")
   
 }
 
 
 
 
-parameters <- function(X,eps=0,iter=1000){
+parameters <- function(X,eps=0,iter=1000,lower,upper){
   M <- max(X)
-  Y <- X/M
-  p <- norm_L_1_GPD_KDE(Y,eps=eps,iter=iter)
+  p <- norm_L_1_GPD_KDE(X,eps=eps,iter=iter,lower=lower,upper = upper)
   GPD_params <- GPD_MLE(X,u=p$par*M)
   return(list(shape=GPD_params[1],scale=GPD_params[2],u=p$par*M,error=p$value))
 }
 
 
-estimation_nakamura <- data.frame("Evento"=character(),shape = numeric(),scale=numeric(),u=numeric(),error=numeric())
-events <- unique(base_de_datos$Type)
 
-for (i in events){
-  data_model <- base_de_datos%>%filter(Type == i)
-  X <- t(data_model%>%select(`NORMALISED LOSS VALUE (2017)`))
-  X[is.na(X)] <- 0 
-  #print(length(X))
-  #print(X)
-  estimation <- parameters(X)
-  estimation_nakamura <- rbind(estimation_nakamura, data.frame("Evento"=i,shape = estimation$shape,scale=estimation$scale,u=estimation$u,error=estimation$error))
-}
-
-#ejemplo <- estimation_nakamura[1,]
-#M<- t(base_de_datos%>%filter(Type == events[1])%>%select(`NORMALISED LOSS VALUE (2017)`))
-#M[is.na(M)] <- 0
-#for_hist <- M[M>=ejemplo$u]
-#M <- max(M,na.rm=TRUE)
-#ggplot(,)+xlim(0,M+1)+stat_function(fun = evd::dgpd,args=list(shape=ejemplo$shape,loc=ejemplo$u,scale=ejemplo$scale))+geom_his
-
-
-create_qqplot <- function(data,distribution,list_params){
-        plot <- ggplot(,aes(sample=data)) + stat_qq_line(distribution = "gpd", dparams= list_params) + stat_qq_point(distribution = "gpd", dparams = list_params)
+create_qqplot <- function(data,distribution,list_params,cols="red",title){
+        plot <- ggplot(,)+stat_qq_line(aes(sample=data),distribution = distribution, dparams= list_params,colour=cols,size=2) + stat_qq_point(aes(sample=data),distribution = distribution, dparams = list_params,size=4,colour="red")+theme(
+                  text =  element_text(size = 17),
+                  legend.position = "none",
+                  plot.caption = element_text(hjust = 0),
+                  panel.spacing = unit(0.65, "cm"),
+                  strip.text = element_text(size = 17),
+                  plot.title = element_text(hjust = 0.5),
+                  axis.text.x = element_text(angle = 25),
+                ) + ggtitle(title
+                ) + xlab("Teórico"
+                ) + ylab("Muestral")
         return(plot)
 }
 
-M<- t(base_de_datos%>%filter(Type == events[4])%>%select(`NORMALISED LOSS VALUE (2017)`))
-M[is.na(M)] <- 0
-for_hist <- M[M>=estimation_nakamura$u[2]]
-create_qqplot(data=for_hist,distribution="gpd",list(shape=estimation_nakamura$shape[2],scale=estimation_nakamura$scale[2],loc=estimation_nakamura$u[2]))
-
-u<-seq(min(M),max(M),by=100000)
-prueba<-numeric()
-for(j in (1:length(u))){
-prueba[j] <- mean(M[M>u[j]]) #Fit the parameters
+create_ppplot <- function(data,distribution,list_params){
+        plot <- ggplot(,)+stat_pp_line(aes(sample=data)) + stat_pp_point(aes(sample=data))
+        return(plot)
 }
-plot(x=u,prueba)
+
+create_dplot <- function(X,m,M,list_params,cols="red",title){
+        n <- length(X)
+        X<-X[X > list_params$loc]
+        #counting <- as.data.frame(table(X))
+        #counting$Freq <- as.numeric(counting$Freq)
+        #counting$X <- as.numeric(counting$X)
+        #number <- as.numeric(names(counting)[-1])
+        #print(counting)
+        #print(number)
+        plot<- ggplot(,)+xlim(m-100000,M+1000000000)+stat_function(size=2,fun = evd::dgpd,args=list(shape=list_params$shape,loc=list_params$loc,scale=list_params$scale),colour=cols)+theme(
+                text =  element_text(size = 17),
+                legend.position = "none",
+                plot.caption = element_text(hjust = 0),
+                panel.spacing = unit(0.65, "cm"),
+                strip.text = element_text(size = 17),
+                plot.title = element_text(hjust = 0.5)
+              )+ ggtitle(title
+                ) + xlab("Monto"
+                ) + ylab("Densidad"
+                ) + scale_x_continuous(trans = function(x) x/max(X))
+        return(plot)
+}
+
+
+
+#We are going to generate the plot to analize where could be u
+for (i in events){
+  X <- t(base_de_datos%>%filter(Type == i)%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X[is.na(X)]<-0
+  assign(paste("mean_excess_plot",i,sep="_"),mean_excess_plot(X))
+}
+
+
+
+max_events <- numeric()
+#Max of each event 
+for (i in 1:length(events)){
+  X <- (base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  max_events[i] <- max(X,na.rm=TRUE)
+}
+
+
+vector_events <- c("inundacion","tormenta","terremoto","ciclon","incendio_forestal","granizada","tornado")
+for (i in 1:length(events)){
+  X <- (base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X <- max(X[X<max_events[i]]-1000)/max_events[i]
+  assign(paste("upper",vector_events[i],sep="_"),X)
+}
+
+
+ggplot(,)+mean_excess_plot_Terremoto
+lower_upper_inundacion <- c(0.25,upper_inundacion)
+lower_upper_tormenta <- c(0.25,upper_tormenta)
+lower_upper_terremoto <- c(0.03,upper_terremoto)
+lower_upper_ciclon <- c(0.5,upper_ciclon)
+lower_upper_incendio_forestal <- c(0.375,upper_incendio_forestal) 
+lower_upper_granizada <- c(0.30,upper_granizada)
+lower_upper_tornado <- c(0.10,upper_tornado)
+
+
+
+#We are going to estimate the parameters for the model
+estimation_nakamura <- data.frame("Evento"=character(),shape = numeric(),scale=numeric(),u=numeric(),error=numeric())
+
+
+for (i in 1:length(events)){
+  data_model <- base_de_datos%>%filter(Type == events[i])
+  X <- t(data_model%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X[is.na(X)] <- 0 
+  #print(length(X))
+  lower_upper_graph <- get(paste("lower_upper",vector_events[i],sep="_")) #Lower and higher obtained from analyisis
+  #print(X)
+  estimation <- parameters(X,lower=max_events[i]*lower_upper_graph[1],upper=max_events[i]*lower_upper_graph[2])
+  estimation_nakamura <- rbind(estimation_nakamura, data.frame("Evento"=events[i],shape = estimation$shape,scale=estimation$scale,u=estimation$u,error=estimation$error))
+}
+
+
+#We are going to create plots qqplot and pplot
+
+for (i in 1:length(events)){
+  X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X[is.na(X)]<-0
+  X<- X[X>estimation_nakamura$u[i]]
+  assign(paste("qq_plot",events[i],sep="_"),create_qqplot(title=events[i],cols=cols[i], data=X,distribution="gpd",list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = estimation_nakamura$u[i])))
+}
+qq_plot_Tormenta
+
+
+for (i in 1:length(events)){
+  X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X[is.na(X)]<-0
+  X<- X[X>estimation_nakamura$u[i]]
+  assign(paste("pp_plot",events[i],sep="_"),create_ppplot(data=X,distribution="gpd",list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = estimation_nakamura$u[i],color=cols[i])))
+}
+
+#We create the density plot
+for (i in 1:length(events)){
+  X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X[is.na(X)]<-0
+  assign(paste("density_plot",events[i],sep="_"),create_dplot(title=events[i],cols=cols[i],X=X,m=estimation_nakamura$u[i],M=max_events[i],list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = estimation_nakamura$u[i])))
+}
+density_plot_Tormenta
+
+
+#We join the plots 
+densities_plot <-ggarrange(`density_plot_Incendio forestal`+theme_minimal(),
+                  density_plot_Ciclón+theme_minimal(),
+                  density_plot_Terremoto+theme_minimal(),
+                  density_plot_Inundación+theme_minimal(),
+                  density_plot_Granizada+theme_minimal(),
+                  density_plot_Tormenta+theme_minimal(),
+                  density_plot_Tornado+theme_minimal(),
+                  ncol=3,
+                  nrow = 3)
+densities_plot
+
 ```
+
+
+
+
+
+
+
 
 
 
