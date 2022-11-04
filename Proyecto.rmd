@@ -23,7 +23,7 @@ library(evd)
 library(rBayesianOptimization)
 library(kdensity)
 
-
+library(xtable) #Used 
 
 
 
@@ -325,8 +325,11 @@ GPD_MLE <- function(X,u){
   model <- evd::fpot(x=X,threshold = u, model = "gpd",std.err=FALSE) #Fit the parameters
   scale <- model$estimate[1]
   shape <- model$estimate[2]
+  
   return(c(shape,scale)) #We return the value
 }
+
+summary(evd::fpot(x=c(12,31,213,12,543,5,56),threshold = 5,model="gpd",std.err=FALSE))
 
 norm_L_1_GPD_KDE <- function(X,eps=0,iter=1000,lower,upper){
   lower <- lower/1000000
@@ -361,7 +364,7 @@ parameters <- function(X,eps=0,iter=1000,lower,upper){
 
 
 create_qqplot <- function(data,distribution,list_params,cols="red",title){
-        plot <- ggplot(,)+stat_qq_line(aes(sample=data),distribution = distribution, dparams= list_params,colour=cols,size=2) + stat_qq_point(aes(sample=data),distribution = distribution, dparams = list_params,size=4,colour="red")+theme(
+        plot <- ggplot(,)+stat_qq_line(aes(sample=data),distribution = distribution, dparams= list_params,colour=cols,size=2) + stat_qq_point(aes(sample=data),distribution = distribution, dparams = list_params)+theme(
                   text =  element_text(size = 17),
                   legend.position = "none",
                   plot.caption = element_text(hjust = 0),
@@ -371,7 +374,9 @@ create_qqplot <- function(data,distribution,list_params,cols="red",title){
                   axis.text.x = element_text(angle = 25),
                 ) + ggtitle(title
                 ) + xlab("Teórico"
-                ) + ylab("Muestral")
+                ) + ylab("Muestral"
+                ) + scale_x_continuous(labels = round(seq(0,max(data)/1000,length.out = 4 ),0),breaks = seq(0,max(data),length.out = 4 ))
+
         return(plot)
 }
 
@@ -389,7 +394,8 @@ create_dplot <- function(X,list_params,cols="red",title,u){
         #number <- as.numeric(names(counting)[-1])
         #print(counting)
         #print(number)
-        plot<- ggplot(,)+ xlim(0,M) +stat_function(size=2,fun = evd::dgpd,args=list(shape=list_params$shape,loc=list_params$loc,scale=list_params$scale),colour=cols)+theme(
+
+        plot<- ggplot(,)+ scale_x_continuous(breaks = seq(0,M,length.out=4),labels = round(seq(0,M/1000,length.out=4),0),limits=c(0,M)) +stat_function(size=2,fun = evd::dgpd,args=list(shape=list_params$shape,loc=list_params$loc,scale=list_params$scale),colour=cols)+theme(
                 text =  element_text(size = 17),
                 legend.position = "none",
                 plot.caption = element_text(hjust = 0),
@@ -443,7 +449,7 @@ lower_upper_tornado <- c(7*million,11*million)
 
 
 #We are going to estimate the parameters for the model
-estimation_nakamura <- data.frame("Evento"=character(),shape = numeric(),scale=numeric(),u=numeric(),error=numeric())
+estimation_nakamura <- data.frame("Evento"=character(),"Mínimo"=numeric(),"Máximo"=numeric(),shape = numeric(),scale=numeric(),u=numeric(),error=numeric())
 
 
 for (i in 1:length(events)){
@@ -454,7 +460,7 @@ for (i in 1:length(events)){
   lower_upper_graph <- get(paste("lower_upper",vector_events[i],sep="_")) #Lower and higher obtained from analyisis
   #print(X)
   estimation <- parameters(X,lower=lower_upper_graph[1],upper=lower_upper_graph[2])
-  estimation_nakamura <- rbind(estimation_nakamura, data.frame("Evento"=events[i],shape = estimation$shape,scale=estimation$scale,u=estimation$u,error=estimation$error))
+  estimation_nakamura <- rbind(estimation_nakamura, data.frame("Evento"=events[i],"Mínimo"=lower_upper_graph[1],"Máximo"=lower_upper_graph[2],shape = estimation$shape,scale=estimation$scale,u=estimation$u,error=estimation$error))
 }
 
 
@@ -521,6 +527,15 @@ mean_excess_plots <-ggarrange(`mean_excess_plot_Incendio forestal`+theme_minimal
                   ncol=3,
                   nrow = 3)
 mean_excess_plots
+
+#We save the plots
+ggsave("densities_method_nakamura.pdf",plot=densities_plot, width=11, height=7)
+ggsave("qqplot_method_nakamura.pdf",plot=qq_plots, width=11, height=7)
+ggsave("mean_excess_plots.pdf",plot=mean_excess_plots, width=11, height=7)
+
+#We create a table with estimated values
+print(xtable(estimation_nakamura, type = "latex", tabular.environment="longtable"),
+    include.rownames=FALSE, file = "estimation_nakamura.tex")
 
 ```
 
