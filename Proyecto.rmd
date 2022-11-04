@@ -24,7 +24,7 @@ library(rBayesianOptimization)
 library(kdensity)
 
 library(xtable) #Used 
-
+library(extRemes) #For fit GP
 
 
 
@@ -322,14 +322,18 @@ mean_excess_plot <- function(X,cols="red",title){
 
 
 GPD_MLE <- function(X,u){
-  model <- evd::fpot(x=X,threshold = u, model = "gpd",std.err=FALSE) #Fit the parameters
-  scale <- model$estimate[1]
-  shape <- model$estimate[2]
-  
-  return(c(shape,scale)) #We return the value
+  model <- extRemes::fevd(X,threshold = u,type="GP") #evd::fpot(x=X,threshold = u, model = "gpd",std.err=FALSE) #Fit the parameters
+  results <- summary(model)
+  scale <- results$par[1]
+  shape <- results$par[2]
+  AIC <- results$AIC
+  BIC <- results$BIC
+  return(c(shape,scale,AIC,BIC)) #We return the value
 }
 
-summary(evd::fpot(x=c(12,31,213,12,543,5,56),threshold = 5,model="gpd",std.err=FALSE))
+
+#summary(prueba) <- extRemes::fevd(c(1,2,3,5,56,6547,578,567),threshold = 5,type="GP")
+#prueba2$AIC <- summary(prueba)
 
 norm_L_1_GPD_KDE <- function(X,eps=0,iter=1000,lower,upper){
   lower <- lower/1000000
@@ -341,7 +345,7 @@ norm_L_1_GPD_KDE <- function(X,eps=0,iter=1000,lower,upper){
     kde <- kdensity(Y[Y>u]-u,kernel="gaussian",normalized=FALSE)
     GPD_params <- GPD_MLE(Y,u)
     F_kde_u <-  integrate(function(x) kde(x-eps),lower=eps,upper = Inf)$value
-    integral <- integrate(function(x) abs(kde(x)/(F_kde_u)-evd::dgpd(x-u,loc=0,scale=GPD_params[2],shape= GPD_params[1],log=FALSE)),lower = 0,upper=Inf)$value
+    integral <- integrate(function(x) abs(kde(x)/(F_kde_u)-extRemes::devd(x-u,loc=0,scale=GPD_params[2],shape= GPD_params[1],type="GP",log=FALSE)),lower = 0,upper=Inf)$value
   
     return(integral)
     
@@ -357,7 +361,7 @@ norm_L_1_GPD_KDE <- function(X,eps=0,iter=1000,lower,upper){
 parameters <- function(X,eps=0,iter=1000,lower,upper){
   p <- norm_L_1_GPD_KDE(X,eps=eps,iter=iter,lower=lower,upper = upper)
   GPD_params <- GPD_MLE(X,u=p$par*1000000)
-  return(list(shape=GPD_params[1],scale=GPD_params[2],u=p$par*1000000,error=p$value))
+  return(list(shape=GPD_params[1],scale=GPD_params[2],AIC=GPD_params[3],BIC=GPD_params[4],u=p$par*1000000,error=p$value))
 }
 
 
@@ -395,7 +399,7 @@ create_dplot <- function(X,list_params,cols="red",title,u){
         #print(counting)
         #print(number)
 
-        plot<- ggplot(,)+ scale_x_continuous(breaks = seq(0,M,length.out=4),labels = round(seq(0,M/1000,length.out=4),0),limits=c(0,M)) +stat_function(size=2,fun = evd::dgpd,args=list(shape=list_params$shape,loc=list_params$loc,scale=list_params$scale),colour=cols)+theme(
+        plot<- ggplot(,)+ scale_x_continuous(breaks = seq(0,M,length.out=4),labels = round(seq(0,M/1000,length.out=4),0),limits=c(0,M)) +stat_function(size=2,fun = extRemes::devd,args=list(shape=list_params$shape,loc=list_params$loc,scale=list_params$scale),colour=cols)+theme(
                 text =  element_text(size = 17),
                 legend.position = "none",
                 plot.caption = element_text(hjust = 0),
@@ -449,7 +453,7 @@ lower_upper_tornado <- c(7*million,11*million)
 
 
 #We are going to estimate the parameters for the model
-estimation_nakamura <- data.frame("Evento"=character(),"Mínimo"=numeric(),"Máximo"=numeric(),shape = numeric(),scale=numeric(),u=numeric(),error=numeric())
+estimation_nakamura <- data.frame("Evento"=character(),"Mínimo"=numeric(),"Máximo"=numeric(),shape = numeric(),scale=numeric(),AIC = numeric(),BIC=numeric(),u=numeric(),error=numeric())
 
 
 for (i in 1:length(events)){
@@ -460,7 +464,7 @@ for (i in 1:length(events)){
   lower_upper_graph <- get(paste("lower_upper",vector_events[i],sep="_")) #Lower and higher obtained from analyisis
   #print(X)
   estimation <- parameters(X,lower=lower_upper_graph[1],upper=lower_upper_graph[2])
-  estimation_nakamura <- rbind(estimation_nakamura, data.frame("Evento"=events[i],"Mínimo"=lower_upper_graph[1],"Máximo"=lower_upper_graph[2],shape = estimation$shape,scale=estimation$scale,u=estimation$u,error=estimation$error))
+  estimation_nakamura <- rbind(estimation_nakamura, data.frame("Evento"=events[i],"Mínimo"=lower_upper_graph[1],"Máximo"=lower_upper_graph[2],shape = estimation$shape,scale=estimation$scale,AIC=estimation$AIC,BIC=estimation$BIC,u=estimation$u,error=estimation$error))
 }
 
 
@@ -470,9 +474,9 @@ for (i in 1:length(events)){
   X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
   X[is.na(X)]<-0
   X<- X[X>estimation_nakamura$u[i]]-estimation_nakamura$u[i]
-  assign(paste("qq_plot",events[i],sep="_"),create_qqplot(title=events[i],cols=cols[i], data=X,distribution="gpd",list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = 0)))
+  assign(paste("qq_plot",events[i],sep="_"),create_qqplot(title=events[i],cols=cols[i], data=X,distribution="evd",list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = 0,type="GP")))
 }
-qq_plot_Terremoto
+qq_plot_Ciclón
 
 for (i in 1:length(events)){
   X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
@@ -485,9 +489,9 @@ for (i in 1:length(events)){
 for (i in 1:length(events)){
   X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
   X[is.na(X)]<-0
-  assign(paste("density_plot",events[i],sep="_"),create_dplot(u=estimation_nakamura$u[i],title=events[i],cols=cols[i],X=X,list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = 0)))
+  assign(paste("density_plot",events[i],sep="_"),create_dplot(u=estimation_nakamura$u[i],title=events[i],cols=cols[i],X=X,list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = 0,type="GP")))
 }
-density_plot_Ciclón
+density_plot_Tormenta
 
 
 
