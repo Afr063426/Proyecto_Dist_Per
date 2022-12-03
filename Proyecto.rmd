@@ -70,8 +70,8 @@ base_de_datos$Type<-recode_factor(base_de_datos$Type, "Bushfire"="Incendio fores
                                   "Cyclone" = "Ciclón", "Earthquake"="Terremoto",
                                   "Flooding"="Inundación",  "Hailstorm" ="Granizada", 
                                   "Storm"="Tormenta" )
-
-
+print(xtable(head(base_de_datos%>%select(-DESCRIPTION2)), type = "latex", tabular.environment="longtable"),
+    include.rownames=FALSE, file = "base_de_datos.tex")
 base_de_datos$`NORMALISED LOSS VALUE (2017)`[is.na(base_de_datos$`NORMALISED LOSS VALUE (2017)`) ]<-0
 
 base_de_datos<-base_de_datos[base_de_datos$`NORMALISED LOSS VALUE (2017)`>1,]
@@ -408,7 +408,7 @@ create_dplot <- function(X,list_params,cols="red",title,u){
                 axis.text.x = element_text(angle = 25),
                 plot.title = element_text(hjust = 0.5)
               )   + ggtitle(title
-                ) + xlab('Montos (en dólares australianos)'
+                ) + xlab('Montos (en millones dólares australianos)'
                 ) + ylab("Densidad"
                 ) 
         return(plot)
