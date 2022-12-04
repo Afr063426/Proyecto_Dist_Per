@@ -632,6 +632,29 @@ for(i in 1:length(events)){
 }
 ```
 
+# Frequency severity by simulation
+```{r}
+#We are going to generate some 
+#simulations from the models fitted
+# and with that we are going to generate
+# value at risk
+
+simulations_zmpois_pareto <- function(event,n_simulations){
+  coincidence_event <- df_fit_poisson_frequency$Type == event
+  lambda <- df_fit_poisson_frequency[coincidence_event,2]
+  p0 <- df_fit_poisson_frequency[coincidence_event,3]
+  coincidence_event <- estimation_nakamura$Evento == event
+  
+  frequency <- rzmpois(n_simulation, lambda, p0)
+  fn <- function(n){
+
+  }
+}
+
+
+
+```
+
 
 
 
