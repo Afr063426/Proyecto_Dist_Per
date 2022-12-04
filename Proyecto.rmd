@@ -22,7 +22,8 @@ library(ggpubr) #for merge plots
 library(evd)
 library(rBayesianOptimization)
 library(kdensity)
-
+library(fitdistrplus)
+library(actuar)
 
 
 
@@ -50,8 +51,8 @@ cols <- c("Inundacion"= "#E78AC3",
 
 setwd("C:/Users/saac9/OneDrive - Universidad de Costa Rica/Documents/UCR/2022/Distribuciones_de_Perdidas/Proyecto_Dist_Per")
 base_de_datos <- read_csv("base_de_datos.csv")
-base_de_datos<-base_de_datos %>%select(-c(`REGION / TOWN`,FinYeae ))
-base_de_datos<-base_de_datos[-c(12:length(base_de_datos))]
+base_de_datos <- base_de_datos %>%dplyr::select(-c(`REGION / TOWN`,FinYeae))
+base_de_datos <- base_de_datos[-c(12:length(base_de_datos))]
 
 base_de_datos<-base_de_datos[!(is.na(base_de_datos$Type)|base_de_datos$Type=="Other"|base_de_datos$Type=="East Coast Low"|base_de_datos$Type=="Wind"),]
 
@@ -408,7 +409,7 @@ create_dplot <- function(X,list_params,cols="red",title,u){
 
 #We are going to generate the plot to analize where could be u
 for (i in 1:length(events)){
-  X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X <- t(base_de_datos%>%filter(Type == events[i])%>%dplyr::select(`NORMALISED LOSS VALUE (2017)`))
   X[is.na(X)]<-0
   assign(paste("mean_excess_plot",events[i],sep="_"),mean_excess_plot(X = X,cols = cols[i],title=events[i]))
 }
@@ -418,14 +419,14 @@ for (i in 1:length(events)){
 max_events <- numeric()
 #Max of each event 
 for (i in 1:length(events)){
-  X <- (base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X <- (base_de_datos%>%filter(Type == events[i])%>%dplyr::select(`NORMALISED LOSS VALUE (2017)`))
   max_events[i] <- max(X,na.rm=TRUE)
 }
 
 
 vector_events <- c("inundacion","tormenta","terremoto","ciclon","incendio_forestal","granizada","tornado")
 for (i in 1:length(events)){
-  X <- (base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X <- (base_de_datos%>%filter(Type == events[i])%>%dplyr::select(`NORMALISED LOSS VALUE (2017)`))
   X <- max(X[X<max_events[i]]-1000)/max_events[i]
   assign(paste("upper",vector_events[i],sep="_"),X)
 }
@@ -448,7 +449,7 @@ estimation_nakamura <- data.frame("Evento"=character(),shape = numeric(),scale=n
 
 for (i in 1:length(events)){
   data_model <- base_de_datos%>%filter(Type == events[i])
-  X <- t(data_model%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X <- t(data_model%>%dplyr::select(`NORMALISED LOSS VALUE (2017)`))
   X[is.na(X)] <- 0 
   #print(length(X))
   lower_upper_graph <- get(paste("lower_upper",vector_events[i],sep="_")) #Lower and higher obtained from analyisis
@@ -461,7 +462,7 @@ for (i in 1:length(events)){
 #We are going to create plots qqplot and pplot
 
 for (i in 1:length(events)){
-  X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X <- t(base_de_datos%>%filter(Type == events[i])%>%dplyr::select(`NORMALISED LOSS VALUE (2017)`))
   X[is.na(X)]<-0
   X<- X[X>estimation_nakamura$u[i]]-estimation_nakamura$u[i]
   assign(paste("qq_plot",events[i],sep="_"),create_qqplot(title=events[i],cols=cols[i], data=X,distribution="gpd",list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = 0)))
@@ -469,7 +470,7 @@ for (i in 1:length(events)){
 qq_plot_Terremoto
 
 for (i in 1:length(events)){
-  X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X <- t(base_de_datos%>%filter(Type == events[i])%>%dplyr::select(`NORMALISED LOSS VALUE (2017)`))
   X[is.na(X)]<-0
   X<- X[X>estimation_nakamura$u[i]]
   assign(paste("pp_plot",events[i],sep="_"),create_ppplot(data=X,distribution="gpd",list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = estimation_nakamura$u[i],color=cols[i])))
@@ -477,7 +478,7 @@ for (i in 1:length(events)){
 
 #We create the density plot
 for (i in 1:length(events)){
-  X <- t(base_de_datos%>%filter(Type == events[i])%>%select(`NORMALISED LOSS VALUE (2017)`))
+  X <- t(base_de_datos%>%filter(Type == events[i])%>%dplyr::select(`NORMALISED LOSS VALUE (2017)`))
   X[is.na(X)]<-0
   assign(paste("density_plot",events[i],sep="_"),create_dplot(u=estimation_nakamura$u[i],title=events[i],cols=cols[i],X=X,list_params=list(shape=estimation_nakamura$shape[i],scale = estimation_nakamura$scale[i],loc = 0)))
 }
@@ -528,10 +529,108 @@ mean_excess_plots
 
 
 
+## Modelling the frequency
+
+We are going to model the frequency of loss over the threshold
+```{r}
+#For this we are going to create a data frame in which we count the
+df_reduced <- base_de_datos%>%dplyr::select(Type,YEAR,`NORMALISED LOSS VALUE (2017)`)
+max_year <- max(df_reduced$YEAR)
+df_reduced <- df_reduced%>%group_by(Type,YEAR)
+df_count_year <- data.frame(Type = factor(),YEAR = numeric(),n = numeric())
+
+for(i in 1:length(events)){
+  df_aux <- df_reduced%>%filter(Type == events[i])
+  min_year <- min(df_aux$YEAR) 
+  df_aux <- df_aux%>%filter(`NORMALISED LOSS VALUE (2017)` > estimation_nakamura[i,4])
+  
+  df_aux <- df_aux%>%count(YEAR)
+  df_aux <- df_aux%>%ungroup()
+  df_aux$Type <- factor(df_aux$Type)
+  df_aux <- df_aux%>%complete(Type, YEAR = min_year:max_year, fill = list(n = 0))%>%as.data.frame()
+  df_count_year <- rbind(df_count_year,df_aux)
+  
+}
+for(i in 1:length(events)){
+  df_aux <- df_count_year%>%filter(Type == events[i])
+  pdf(paste("Cullen_and_frey",events[i],".pdf",sep = ""))
+  descdist(df_aux$n[df_aux$n!=0],discrete = TRUE)
+  dev.off()
+}
+
+
+```
+
+
+In this case we are going to fit a Zero Modified Poisson
+```{r}
+
+#df fit with the parameters
+df_fit_poisson_frequency <- data.frame("Type"=character(), "lambda" = numeric(), "p0"=numeric())
+for(i in 1:length(events)){
+  if(!(i %in%c(3,length(events)))){ #We exclude this events because requiere an special attention
+  count_aux <- unlist(df_count_year%>%filter(Type == events[i])%>%dplyr::select(n)) #Count of values
+
+
+  fit_zmpois <- fitdist(data = count_aux, dist = "zmpois", start = list(lambda = 0.12,p0 = 0.85)) #Fitting the distribution
+  df_aux <- data.frame("Type"=events[i], "lambda" = fit_zmpois$estimate["lambda"], "p0"=fit_zmpois$estimate["p0"]) #aux df
+  df_fit_poisson_frequency <- rbind(df_fit_poisson_frequency,df_aux) #We add the row of estimation
+  }
+}
 
 
 
+#To model Terromoto, special adjust to lower
+count_aux <- unlist(df_count_year%>%filter(Type == events[3])%>%dplyr::select(n))
 
+fit_zmpois <- fitdist(data = count_aux, dist = "zmpois", start = list(lambda = 0.12,p0 = 0.80), lower = c(0.0000000000001,0.7)) 
+df_aux <- data.frame("Type"=events[3], "lambda" = fit_zmpois$estimate["lambda"], "p0"=fit_zmpois$estimate["p0"])
+df_fit_poisson_frequency <- rbind(df_fit_poisson_frequency,df_aux)
+
+
+
+#To model Tornado, special adjust to lower
+count_aux <- unlist(df_count_year%>%filter(Type == events[length(events)])%>%dplyr::select(n))
+
+fit_zmpois <- fitdist(data = count_aux, dist = "zmpois", start = list(lambda = 0.12,p0 = 0.80), lower = c(0.0000000000001,0.7))
+df_aux <- data.frame("Type"=events[length(events)], "lambda" = fit_zmpois$estimate["lambda"], "p0"=fit_zmpois$estimate["p0"])
+df_fit_poisson_frequency <- rbind(df_fit_poisson_frequency,df_aux)
+prueba <- rzmpois(1000000,p0 = df_fit_poisson_frequency[1,3],lambda = df_fit_poisson_frequency[1,2])
+
+```
+
+
+
+We do a KMS test
+```{r}
+empirical_distribution <- function(values, x){
+  return(sum(values<=x)/length(values))
+}
+kms_test <- function(values,event){
+  coincidence_event <- df_fit_poisson_frequency$Type == event
+  lambda <- df_fit_poisson_frequency[coincidence_event,2]
+  p0 <- df_fit_poisson_frequency[coincidence_event,3]
+  print(p0)
+  print(lambda)
+  value <- unique(values)
+  probabilities <- pzmpois(value,lambda = lambda,p0 = p0)
+
+  empirical_probabilities <- sapply(FUN = empirical_distribution,value = values,X=value)
+  D <- max(abs(probabilities-empirical_probabilities))
+  print(event)
+  print(D)
+  print(1.36/sqrt(length(values)))
+  print(length(values))
+  return(1.36/sqrt(length(values))<= D)
+}
+df_kms_test <- data.frame("Type"=character(), "Reject" = logical())
+for(i in 1:length(events)){
+  count_aux <- unlist(df_count_year%>%filter(Type == events[i])%>%dplyr::select(n))
+  kms_aux <- kms_test(count_aux,events[i])
+  df_aux <- data.frame("Type"= events[i], "Reject" = kms_aux)
+  df_kms_test <- rbind(df_kms_test,df_aux)
+}
+```
 
 
 
